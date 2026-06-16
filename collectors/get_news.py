@@ -20,7 +20,7 @@ def get_news():
     params = {
         "q": SEARCH_QUERY,
         "language": "en",
-        "pageSize": 10,
+        "pageSize": 50,
         "apiKey": api_key
     }
 

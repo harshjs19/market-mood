@@ -2,3 +2,14 @@ venv/
 __pycache__/
 .ipynb_checkpoints/
 .env
+
+db/*.db
+db/*.sqlite
+db/*.sqlite3
+
+news_data/*.csv
+
+*.pyc
+*.pyo
+Thumbs.db
+.DS_Store
