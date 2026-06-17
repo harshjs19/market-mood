@@ -80,6 +80,12 @@ AlphaLens is not a trading bot and it does not place orders. Think of it as an a
 
 ---
 
+## Why I Built AlphaLens
+
+Financial news moves markets quickly, but manually tracking hundreds of headlines and understanding their impact is difficult.
+
+AlphaLens was built to automate this process by collecting financial news, analyzing sentiment using FinBERT, aggregating company-level sentiment, and generating actionable Buy/Hold/Sell signals through an interactive dashboard.
+
 ## Features
 
 ### News Collection
@@ -122,6 +128,17 @@ The Streamlit dashboard visualizes market mood, sentiment ranking, news distribu
 
 ![News](Screenshots/News%20%26%20Sources.png)
 
+## Current Coverage
+
+Currently tracked companies:
+
+- NVIDIA (NVDA)
+- Microsoft (MSFT)
+- Apple (AAPL)
+- Tesla (TSLA)
+
+The ticker mapping layer can be extended to support additional companies and ETFs.
+
 
 ## Tech Stack
 
@@ -141,7 +158,7 @@ The Streamlit dashboard visualizes market mood, sentiment ranking, news distribu
 Clone the repository:
 
 ```bash
-git clone https://github.com/your-username/AlphaLens.git
+git clone https://github.com/harshjs19/AlphaLens.git
 cd AlphaLens
 ```
 
@@ -166,7 +183,7 @@ source venv/bin/activate
 Install dependencies:
 
 ```bash
-pip install -r requirements.txt
+python -m pip install -r requirements.txt
 ```
 
 Create a `.env` file in the project root:
@@ -248,9 +265,7 @@ news       -> raw collected headlines
 sentiment  -> FinBERT sentiment output by headline
 prices     -> multi-ticker close price and volume history
 ```
-
-The nice thing about this setup is that nothing is hidden. If a signal looks strange, you can inspect the source headline, the sentiment score, and the price data behind it.
-
+The modular pipeline design allows every generated signal to be traced back to its source news articles, sentiment scores, and underlying price data.
 ---
 
 ## Future Enhancements
@@ -268,6 +283,14 @@ The nice thing about this setup is that nothing is hidden. If a signal looks str
 - Exportable analyst reports
 
 ---
+
+## Disclaimer
+
+This project is intended for educational and research purposes only.
+
+The generated Buy/Hold/Sell signals are based on sentiment analysis and should not be considered financial advice.
+
+Always perform independent research before making investment decisions.
 
 ## License
 
