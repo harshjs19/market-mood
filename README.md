@@ -269,20 +269,6 @@ The nice thing about this setup is that nothing is hidden. If a signal looks str
 
 ---
 
-## Screenshots
-
-Screenshots will be added as the dashboard matures.
-
-Planned captures:
-
-- Overview dashboard
-- Sentiment ranking
-- Signal engine
-- Multi-ticker price coverage
-- Price impact analysis
-
----
-
 ## License
 
 AlphaLens is released under the MIT License.
