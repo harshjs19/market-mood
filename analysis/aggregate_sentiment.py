@@ -8,6 +8,10 @@ sentiment_df = pd.read_sql(
     conn
 )
 
+sentiment_df = sentiment_df[
+    sentiment_df["ticker"] != "UNKNOWN"
+].copy()
+
 summary = (
     sentiment_df
     .groupby("ticker")["sentiment_value"]

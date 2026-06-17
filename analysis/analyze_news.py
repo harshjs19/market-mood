@@ -1,39 +1,76 @@
 import sqlite3
-import pandas as pd
-
-from transformers import pipeline
 from datetime import datetime
+
+import pandas as pd
+from transformers import pipeline
+
+
+# --------------------------------
+# FINBERT MODEL
+# --------------------------------
 
 sentiment_model = pipeline(
     "sentiment-analysis",
     model="ProsusAI/finbert"
 )
 
+
+# --------------------------------
+# COMPANY MAPPING
+# --------------------------------
+
 company_map = {
+
     "Nvidia": "NVDA",
+    "NVDA": "NVDA",
+    "Jensen Huang": "NVDA",
+    "CUDA": "NVDA",
+    "RTX": "NVDA",
+    "GeForce": "NVDA",
+
     "Microsoft": "MSFT",
+    "MSFT": "MSFT",
     "Windows": "MSFT",
     "Xbox": "MSFT",
+    "Azure": "MSFT",
+    "Copilot": "MSFT",
+    "Satya Nadella": "MSFT",
 
     "Apple": "AAPL",
+    "AAPL": "AAPL",
     "iPhone": "AAPL",
+    "iPad": "AAPL",
     "MacBook": "AAPL",
-    "Jony Ive": "AAPL",
+    "Safari": "AAPL",
+    "Siri": "AAPL",
+    "Tim Cook": "AAPL",
 
     "Tesla": "TSLA",
-    "Elon Musk": "TSLA"
+    "TSLA": "TSLA",
+    "Elon Musk": "TSLA",
+    "Cybertruck": "TSLA",
+    "Model Y": "TSLA",
+    "Model 3": "TSLA",
+    "Autopilot": "TSLA",
+    "FSD": "TSLA",
 }
 
 
-def detect_company(title):
+def detect_company(title, description):
 
-    for company, ticker in company_map.items():
+    text = f"{title} {description}".lower()
 
-        if company.lower() in title.lower():
+    for keyword, ticker in company_map.items():
+
+        if keyword.lower() in text:
             return ticker
 
     return "UNKNOWN"
 
+
+# --------------------------------
+# SENTIMENT VALUE
+# --------------------------------
 
 def calculate_sentiment_value(label, score):
 
@@ -45,19 +82,30 @@ def calculate_sentiment_value(label, score):
     elif label == "negative":
         return -score
 
-    else:
-        return 0
+    return 0
 
+
+# --------------------------------
+# LOAD DATA
+# --------------------------------
 
 conn = sqlite3.connect("db/market.db")
 
 news_df = pd.read_sql(
-    "SELECT title FROM news",
+    """
+    SELECT
+        title,
+        description
+    FROM news
+    """,
     conn
 )
 
 existing_sentiments = pd.read_sql(
-    "SELECT title FROM sentiment",
+    """
+    SELECT title
+    FROM sentiment
+    """,
     conn
 )
 
@@ -67,30 +115,50 @@ existing_titles = set(
 
 sentiment_rows = []
 
-for title in news_df["title"]:
+
+# --------------------------------
+# ANALYZE NEWS
+# --------------------------------
+
+for _, row in news_df.iterrows():
+
+    title = str(row["title"])
+    description = str(
+        row.get("description", "")
+    )
 
     if title in existing_titles:
         continue
 
     result = sentiment_model(title)[0]
 
-    ticker = detect_company(title)
+    ticker = detect_company(
+        title,
+        description
+    )
 
     sentiment_value = calculate_sentiment_value(
         result["label"],
         result["score"]
     )
 
-    sentiment_rows.append({
-        "ticker": ticker,
-        "title": title,
-        "sentiment_label": result["label"],
-        "sentiment_score": result["score"],
-        "sentiment_value": sentiment_value,
-        "analyzed_at": datetime.now().strftime(
-            "%Y-%m-%d %H:%M:%S"
-        )
-    })
+    sentiment_rows.append(
+        {
+            "ticker": ticker,
+            "title": title,
+            "sentiment_label": result["label"],
+            "sentiment_score": result["score"],
+            "sentiment_value": sentiment_value,
+            "analyzed_at": datetime.now().strftime(
+                "%Y-%m-%d %H:%M:%S"
+            ),
+        }
+    )
+
+
+# --------------------------------
+# SAVE RESULTS
+# --------------------------------
 
 if sentiment_rows:
 
@@ -107,6 +175,12 @@ if sentiment_rows:
 
     print(
         f"Inserted {len(sentiment_df)} sentiment rows"
+    )
+
+    print("\nTicker Counts:\n")
+    print(
+        sentiment_df["ticker"]
+        .value_counts()
     )
 
 else:

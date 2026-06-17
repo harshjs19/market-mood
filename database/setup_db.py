@@ -24,14 +24,12 @@ CREATE TABLE IF NOT EXISTS prices (
 """)
 
 cursor.execute("""
-CREATE TABLE IF NOT EXISTS sentiment (
+CREATE TABLE IF NOT EXISTS news (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    ticker TEXT,
     title TEXT,
-    sentiment_label TEXT,
-    sentiment_score REAL,
-    sentiment_value REAL,
-    analyzed_at TEXT
+    description TEXT,
+    source TEXT,
+    published_at TEXT
 )
 """)
 

@@ -1,200 +1,170 @@
+#!/usr/bin/env python3
+"""
+AlphaLens Pipeline Runner
+==========================
+Orchestrates the full AlphaLens data pipeline end-to-end:
+
+    1. Fetch news articles from configured sources
+    2. Persist raw articles into the SQLite database
+    3. Run FinBERT sentiment analysis on new headlines
+    4. Aggregate per-ticker sentiment scores
+    5. Generate actionable BUY / HOLD / SELL signals
+
+Usage:
+    python run_pipeline.py
+
+Exit codes:
+    0  -- all stages completed successfully
+    1  -- one or more stages failed
+"""
+
 from __future__ import annotations
 
-from dataclasses import dataclass
-from pathlib import Path
 import subprocess
 import sys
 import time
+from pathlib import Path
+
+# ---------------------------------------------------------------------------
+# Configuration
+# ---------------------------------------------------------------------------
+
+# Resolve the project root relative to this script so it works regardless
+# of the current working directory at invocation time.
+PROJECT_ROOT: Path = Path(__file__).resolve().parent
+
+# Python interpreter — use the same interpreter that launched this script
+# so virtualenv / venv activation is respected automatically.
+PYTHON: str = sys.executable
+
+# Ordered list of pipeline stages.
+# Each entry is a (label, relative script path) tuple.
+STAGES: list[tuple[str, Path]] = [
+    ("Fetching news",             PROJECT_ROOT / "collectors" / "get_news.py"),
+    ("Saving news to database",   PROJECT_ROOT / "database"   / "save_news.py"),
+    ("Running sentiment analysis", PROJECT_ROOT / "analysis"   / "analyze_news.py"),
+    ("Aggregating sentiment",     PROJECT_ROOT / "analysis"   / "aggregate_sentiment.py"),
+    ("Generating signals",        PROJECT_ROOT / "analysis"   / "generate_signals.py"),
+]
+
+# Visual formatting constants
+DIVIDER = "=" * 48
+SUBDIV  = "-" * 48
 
 
-# ----------------------------
-# CONFIGURATION
-# ----------------------------
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
 
-PROJECT_ROOT = Path(__file__).resolve().parent
-PYTHON_EXECUTABLE = sys.executable
+def _run_stage(label: str, script: Path, index: int, total: int) -> bool:
+    """Execute a single pipeline stage and report its outcome.
 
+    Parameters
+    ----------
+    label:
+        Human-readable description printed before execution.
+    script:
+        Absolute path to the Python script to run.
+    index:
+        1-based stage number (for progress display).
+    total:
+        Total number of stages.
 
-@dataclass(frozen=True)
-class PipelineStep:
-    """Represents one executable step in the AlphaLens data pipeline."""
+    Returns
+    -------
+    bool
+        ``True`` if the stage succeeded, ``False`` otherwise.
+    """
+    print(f"\n[{index}/{total}] {label}...")
+    print(f"       > {script.relative_to(PROJECT_ROOT)}")
 
-    name: str
-    script_path: Path
+    # Guard: make sure the script file actually exists before attempting
+    # to run it — gives a clearer error message than a Python traceback.
+    if not script.is_file():
+        print(f"  FAILED -- script not found: {script}")
+        return False
 
-
-PIPELINE_STEPS = (
-    PipelineStep(
-        name="Collect financial news",
-        script_path=Path("collectors/get_news.py"),
-    ),
-    PipelineStep(
-        name="Save news to SQLite",
-        script_path=Path("database/save_news.py"),
-    ),
-    PipelineStep(
-        name="Collect ticker prices",
-        script_path=Path("collectors/get_prices.py"),
-    ),
-    PipelineStep(
-        name="Save prices to SQLite",
-        script_path=Path("database/save_prices.py"),
-    ),
-    PipelineStep(
-        name="Analyze news sentiment",
-        script_path=Path("analysis/analyze_news.py"),
-    ),
-    PipelineStep(
-        name="Generate trading signals",
-        script_path=Path("analysis/generate_signals.py"),
-    ),
-)
-
-
-# ----------------------------
-# CONSOLE HELPERS
-# ----------------------------
-
-def format_duration(seconds: float) -> str:
-    """Format elapsed seconds as a compact runtime string."""
-
-    minutes, remaining_seconds = divmod(seconds, 60)
-
-    if minutes >= 1:
-        return f"{int(minutes)}m {remaining_seconds:.2f}s"
-
-    return f"{remaining_seconds:.2f}s"
-
-
-def print_header() -> None:
-    """Print a professional run header before starting subprocesses."""
-
-    print("=" * 72)
-    print("AlphaLens Data Pipeline")
-    print("=" * 72)
-    print(f"Project root : {PROJECT_ROOT}")
-    print(f"Python       : {PYTHON_EXECUTABLE}")
-    print(f"Steps        : {len(PIPELINE_STEPS)}")
-    print("-" * 72)
-
-
-def print_footer(total_runtime: float) -> None:
-    """Print the success footer after all steps complete."""
-
-    print("-" * 72)
-    print("Pipeline completed successfully")
-    print(f"Total runtime: {format_duration(total_runtime)}")
-    print("=" * 72)
-
-
-def print_failure(step: PipelineStep, return_code: int, total_runtime: float) -> None:
-    """Print a fail-fast summary when a subprocess exits unsuccessfully."""
-
-    print("-" * 72)
-    print("Pipeline failed")
-    print(f"Failed step  : {step.name}")
-    print(f"Exit code    : {return_code}")
-    print(f"Total runtime: {format_duration(total_runtime)}")
-    print("=" * 72)
-
-
-# ----------------------------
-# PIPELINE EXECUTION
-# ----------------------------
-
-def validate_step_script(step: PipelineStep) -> Path:
-    """Ensure the step script exists before attempting to run it."""
-
-    absolute_script_path = PROJECT_ROOT / step.script_path
-
-    if not absolute_script_path.exists():
-        raise FileNotFoundError(
-            f"Pipeline step script not found: {absolute_script_path}"
-        )
-
-    if not absolute_script_path.is_file():
-        raise FileNotFoundError(
-            f"Pipeline step path is not a file: {absolute_script_path}"
-        )
-
-    return absolute_script_path
-
-
-def run_step(step_number: int, total_steps: int, step: PipelineStep) -> int:
-    """Run a single pipeline step as a subprocess and return its exit code."""
-
-    absolute_script_path = validate_step_script(step)
-
-    print(f"\n[{step_number}/{total_steps}] {step.name}")
-    print(f"Script: {step.script_path}")
-    print("-" * 72)
-
-    step_start = time.perf_counter()
-
-    completed_process = subprocess.run(
-        [
-            PYTHON_EXECUTABLE,
-            str(absolute_script_path),
-        ],
-        cwd=PROJECT_ROOT,
-        check=False,
-    )
-
-    step_runtime = time.perf_counter() - step_start
-
-    if completed_process.returncode == 0:
-        print(f"Status: completed in {format_duration(step_runtime)}")
-    else:
-        print(f"Status: failed in {format_duration(step_runtime)}")
-
-    return completed_process.returncode
-
-
-def run_pipeline() -> int:
-    """Run the full AlphaLens pipeline in the required order."""
-
-    pipeline_start = time.perf_counter()
-    print_header()
+    stage_start = time.perf_counter()
 
     try:
-        for step_number, step in enumerate(PIPELINE_STEPS, start=1):
-            return_code = run_step(
-                step_number=step_number,
-                total_steps=len(PIPELINE_STEPS),
-                step=step,
-            )
+        result = subprocess.run(
+            [PYTHON, str(script)],
+            cwd=str(PROJECT_ROOT),
+            capture_output=True,
+            text=True,
+            timeout=600,  # 10-minute safety timeout per stage
+        )
+    except subprocess.TimeoutExpired:
+        print(f"  FAILED -- stage timed out after 600 seconds")
+        return False
+    except OSError as exc:
+        print(f"  FAILED -- could not launch process: {exc}")
+        return False
 
-            if return_code != 0:
-                total_runtime = time.perf_counter() - pipeline_start
-                print_failure(
-                    step=step,
-                    return_code=return_code,
-                    total_runtime=total_runtime,
-                )
-                return return_code
+    elapsed = time.perf_counter() - stage_start
 
-    except KeyboardInterrupt:
-        total_runtime = time.perf_counter() - pipeline_start
-        print("-" * 72)
-        print("Pipeline interrupted by user")
-        print(f"Total runtime: {format_duration(total_runtime)}")
-        print("=" * 72)
-        return 130
+    # Print captured stdout (if any) indented for readability.
+    if result.stdout and result.stdout.strip():
+        for line in result.stdout.strip().splitlines():
+            print(f"       {line}")
 
-    except Exception as exc:
-        total_runtime = time.perf_counter() - pipeline_start
-        print("-" * 72)
-        print("Pipeline failed before completion")
-        print(f"Error        : {exc}")
-        print(f"Total runtime: {format_duration(total_runtime)}")
-        print("=" * 72)
-        return 1
+    if result.returncode == 0:
+        print(f"  SUCCESS ({elapsed:.1f}s)")
+        return True
 
-    total_runtime = time.perf_counter() - pipeline_start
-    print_footer(total_runtime)
+    # Stage failed — show stderr to aid debugging.
+    print(f"  FAILED (exit code {result.returncode}, {elapsed:.1f}s)")
+    if result.stderr and result.stderr.strip():
+        print(f"       stderr:")
+        for line in result.stderr.strip().splitlines():
+            print(f"         {line}")
+    return False
 
-    return 0
+
+# ---------------------------------------------------------------------------
+# Main entry point
+# ---------------------------------------------------------------------------
+
+def main() -> int:
+    """Run the full AlphaLens pipeline and return an exit code."""
+    total = len(STAGES)
+    passed = 0
+    failed_stage: str | None = None
+
+    print(f"\n{DIVIDER}")
+    print("  ALPHALENS PIPELINE STARTED")
+    print(f"{DIVIDER}")
+    print(f"  Stages    : {total}")
+    print(f"  Python    : {PYTHON}")
+    print(f"  Project   : {PROJECT_ROOT}")
+
+    pipeline_start = time.perf_counter()
+
+    for index, (label, script) in enumerate(STAGES, 1):
+        success = _run_stage(label, script, index, total)
+        if success:
+            passed += 1
+        else:
+            failed_stage = label
+            break  # Stop immediately on first failure
+
+    pipeline_elapsed = time.perf_counter() - pipeline_start
+
+    # --------------- Summary ---------------
+    print(f"\n{DIVIDER}")
+
+    if failed_stage is None:
+        print("  PIPELINE COMPLETED SUCCESSFULLY")
+    else:
+        print(f"  PIPELINE FAILED at: {failed_stage}")
+
+    print(f"{SUBDIV}")
+    print(f"  Stages passed : {passed}/{total}")
+    print(f"  Execution time: {pipeline_elapsed:.1f}s")
+    print(f"{DIVIDER}\n")
+
+    return 0 if failed_stage is None else 1
 
 
 if __name__ == "__main__":
-    raise SystemExit(run_pipeline())
+    sys.exit(main())

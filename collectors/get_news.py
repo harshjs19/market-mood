@@ -1,35 +1,80 @@
 import os
-import requests
+from datetime import datetime, timedelta, UTC
+
 import pandas as pd
-
-SEARCH_QUERY = "Tesla OR Apple OR Nvidia OR Microsoft"
-
+import requests
 from dotenv import load_dotenv
+
+
+# --------------------------------
+# CONFIG
+# --------------------------------
+
+QUERIES = [
+    "Microsoft",
+    "Apple",
+    "Nvidia",
+    "Tesla"
+]
 
 load_dotenv()
 
 api_key = os.getenv("NEWS_API_KEY")
+
 if not api_key:
     raise ValueError("NEWS_API_KEY not found")
 
+
+# --------------------------------
+# NEWS FETCH
+# --------------------------------
 
 def get_news():
 
     url = "https://newsapi.org/v2/everything"
 
-    params = {
-        "q": SEARCH_QUERY,
-        "language": "en",
-        "pageSize": 50,
-        "apiKey": api_key
-    }
+    from_date = (
+        datetime.now(UTC) - timedelta(days=7)
+    ).strftime("%Y-%m-%d")
 
-    response = requests.get(url, params=params)
+    all_articles = []
 
-    data = response.json()
+    for query in QUERIES:
 
-    return data["articles"]
+        params = {
+            "q": query,
+            "language": "en",
+            "sortBy": "publishedAt",
+            "pageSize": 25,
+            "from": from_date,
+            "apiKey": api_key,
+        }
 
+        response = requests.get(
+            url,
+            params=params,
+            timeout=30,
+        )
+
+        response.raise_for_status()
+
+        data = response.json()
+
+        print(
+            f"{query}: "
+            f"{len(data.get('articles', []))} articles"
+        )
+
+        all_articles.extend(
+            data.get("articles", [])
+        )
+
+    return all_articles
+
+
+# --------------------------------
+# PROCESS ARTICLES
+# --------------------------------
 
 articles = get_news()
 
@@ -37,17 +82,28 @@ news_list = []
 
 for item in articles:
 
-    news_list.append({
-        "title": item["title"],
-        "source": item["source"]["name"],
-        "published_at": item["publishedAt"]
-    })
+    news_list.append(
+        {
+            "title": item.get("title"),
+            "description": item.get("description"),
+            "source": item.get("source", {}).get("name"),
+            "published_at": item.get("publishedAt"),
+        }
+    )
 
 news_df = pd.DataFrame(news_list)
 
+news_df = news_df.drop_duplicates(
+    subset=["title"]
+)
+
 news_df.to_csv(
     "news_data/news.csv",
-    index=False
+    index=False,
 )
 
 print(f"Saved {len(news_df)} articles")
+print(
+    "Latest article date:",
+    news_df["published_at"].max()
+)
