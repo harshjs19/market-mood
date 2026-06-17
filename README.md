@@ -111,22 +111,9 @@ The Streamlit dashboard visualizes market mood, sentiment ranking, news distribu
 ## Dashboard Preview
 
 ### Overview Dashboard
-![Overview](screenshots/Overview.png)
 
-### Additional Overview View
-![Overview 2](screenshots/Overview%202.png)
+![Overview](./screenshots/Overview.png)
 
-### Price Analysis
-![Prices](screenshots/Prices.png)
-
-### Sentiment & Coverage
-![Sentiment](screenshots/Sentiment%20%26%20Coverage.png)
-
-### Trading Signals
-![Signals](screenshots/Signal%20Engine.png)
-
-### News Intelligence Feed
-![News](screenshots/News%20%26%20Sources.png)
 
 ## Tech Stack
 
