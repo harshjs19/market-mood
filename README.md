@@ -25,6 +25,20 @@ AlphaLens is not a trading bot and it does not place orders. Think of it as an a
 
 ---
 
+## Key Statistics
+
+| Metric                  | Value              |
+| ----------------------- | ------------------ |
+| Tracked Companies       | 4                  |
+| News Articles Processed | 180+               |
+| Database                | SQLite             |
+| Sentiment Model         | FinBERT            |
+| Signals Generated       | Buy / Hold / Sell  |
+| Dashboard               | Streamlit + Plotly |
+| Market Data Source      | yFinance           |
+| News Source             | NewsAPI            |
+
+
 ## Architecture Diagram
 
 ```text
@@ -295,3 +309,4 @@ Always perform independent research before making investment decisions.
 ## License
 
 AlphaLens is released under the MIT License.
+
